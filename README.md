@@ -42,11 +42,6 @@ We welcome contributions to the Jakaro game code! If you have any suggestions, b
 
 We appreciate your contributions and will review your pull request as soon as possible.
 
-## License
-The Jakaro game code is licensed under the [MIT License](https://opensource.org/licenses/MIT). Feel free to use, modify, and distribute the code as per the license terms.
-
-Please note that while the code in this repository is provided as-is, we have made our best effort to ensure its quality and functionality. However, we cannot guarantee its performance or compatibility with all hardware configurations.
-
 ## Conclusion
 The Jakaro Game Code repository provides the necessary hardware code to enable the interaction between the game board and the software program. Follow the installation and usage instructions to get started with the Jakaro game. Have fun playing the game and exploring the possibilities of this unique gaming experience!
 
