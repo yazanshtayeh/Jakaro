@@ -1,0 +1,42 @@
+#include <SoftwareSerial.h>
+int player=0;
+int player1[4] = {92, 93, 94,95};
+int player2[4] = {96, 97, 98, 99};
+int player3[4] = {100, 101, 102, 103};
+int player4[4] = {104, 105, 106, 107};
+int players[16]= {92, 93, 94, 95, 96, 97, 98, 99, 100, 101, 102, 103, 104, 105, 106, 107}
+bool status=false;
+bool finished=false;
+void setup() {
+  // put your setup code here, to run once:
+  Serial.begin(9600);
+  Serial.println("------------------------");
+  Serial.println(" ");
+}
+
+void loop() {
+  // put your main code here, to run repeatedly:
+  if (Serial.available()>0)
+  {
+  Serial.println("Jakaro game");
+  Serial.println("choose game mode");
+  int mode = Serial.parseInt();
+  Serial.println(mode);
+    if(mode==3)
+    {
+      player=1;
+      Serial.println("4 player mode");
+      fourPlayer();
+    }
+  }
+}
+
+void fourPlayer(){
+  while(!finished){
+    if (Serial.available()>0){
+       Serial.println("play a card");
+       int card = Serial.parseInt();
+       Serial.println("played this card");
+    }
+  }
+}
