@@ -1,42 +1,534 @@
 #include <SoftwareSerial.h>
+#include <Wire.h> 
+#include <LiquidCrystal_I2C.h>
+#include <SPI.h>
+#include <RFID.h>
+#include <string.h>
+
+LiquidCrystal_I2C lcd(0x27, 2, 1, 0, 4, 5, 6, 7, 3, POSITIVE);  // Set the LCD I2C address
+
 int player=0;
-int player1[4] = {92, 93, 94,95};
-int player2[4] = {96, 97, 98, 99};
-int player3[4] = {100, 101, 102, 103};
-int player4[4] = {104, 105, 106, 107};
-int players[16]= {92, 93, 94, 95, 96, 97, 98, 99, 100, 101, 102, 103, 104, 105, 106, 107}
+int stone=0;
+int players[16]= {13, 25, 94, 95, 96, 97, 66, 99, 100, 101, 102, 103, 104, 105, 106, 107};
 bool status=false;
 bool finished=false;
+bool burn=false;
+//buttons variable
+const byte interruptPin = 2;
+const byte interruptPin2 = 3;
+const byte interruptPin3 = 18;
+int button=0;
+
+//rfid scanner
+String adresess[15]={"1364144214202","1364140214214","1364136214210","1364132214222","1364128214218","1364136215211",
+"1364132215223","1364128215219","136412421539","136412121435","13641921473","13642321477","13642721465","13643121469","136435214121"};
+int value[16]={1,2,3,4,5,6,7,8,9,10,11,12,13,13,3,-1};
+/* Define the DIO used for the SDA (SS) and RST (reset) pins. */
+#define SDA_DIO 9
+#define RESET_DIO 8
+/* Create an instance of the RFID library */
+RFID RC522(SDA_DIO, RESET_DIO); 
+int index=15;
+
+template <typename T>
+Print& operator<<(Print& printer, T value)
+{
+    printer.print(value);
+    return printer;
+}
+
 void setup() {
   // put your setup code here, to run once:
   Serial.begin(9600);
   Serial.println("------------------------");
   Serial.println(" ");
+  //20*4 lcd 
+  lcd.begin(20,4); 
+  lcd.setCursor(1,0);
+  lcd.print("Welcome to Jakaro");
+  lcd.setCursor(8,1);
+  lcd.print("****");
+  lcd.setCursor(6,2);
+  lcd.print("have fun");
+  lcd.setCursor(8,3);
+  lcd.print("****");
+  //buttons
+  pinMode( interruptPin, INPUT_PULLUP );
+  pinMode( interruptPin2, INPUT_PULLUP );
+  pinMode( interruptPin3, INPUT_PULLUP );
+
+  attachInterrupt(digitalPinToInterrupt(interruptPin), ISR_button_pressed, FALLING);
+  attachInterrupt(digitalPinToInterrupt(interruptPin2), ISR_button_pressed2, FALLING);
+  attachInterrupt(digitalPinToInterrupt(interruptPin3), ISR_button_pressed3, FALLING);
+  //rfid scanner
+  /* Enable the SPI interface */
+  SPI.begin(); 
+  /* Initialise the RFID reader */
+  RC522.init();
 }
 
 void loop() {
   // put your main code here, to run repeatedly:
-  if (Serial.available()>0)
-  {
+  delay(5000);
+  lcd.clear();
+  lcd.setCursor(3,0);
+  lcd.print("choose game mode");
+  lcd.setCursor(3,1);
+  lcd.print("1:toturial");
+  lcd.setCursor(3,2);
+  lcd.print("2:vs AI");
+  lcd.setCursor(3,3);
+  lcd.print("3:vs humans");
+
   Serial.println("Jakaro game");
   Serial.println("choose game mode");
-  int mode = Serial.parseInt();
+
+  ReadButton();
+
+  int mode =button;
   Serial.println(mode);
-    if(mode==3)
-    {
-      player=1;
-      Serial.println("4 player mode");
-      fourPlayer();
-    }
+  if(mode==3)
+  {
+    player=1;
+    Serial.println("4 player mode");
+    fourPlayer();
   }
+  
 }
 
 void fourPlayer(){
   while(!finished){
-    if (Serial.available()>0){
-       Serial.println("play a card");
-       int card = Serial.parseInt();
-       Serial.println("played this card");
+
+    lcd.clear();
+    lcd.setCursor(5,0);
+    lcd.print(String("player ")+String(player));
+    
+    lcd.setCursor(4,2);
+    lcd.print("play a card");
+
+    Serial << "player: "<<player<<" turn \n";
+    Serial <<"play a card";
+
+    if(burn==false){
+      int card = ReadCard();
+      Serial << "played this card:"<<card<<"\n";
+      playCard(card);
+      player=(player)%4+1;
+      showResult();
+    }
+    else if(burn==true){
+      lcd.clear();
+      lcd.setCursor(5,0);
+      lcd.print(String("player ")+String(player));
+      lcd.setCursor(4,2);
+      lcd.print("burn a card");
+
+      int card = ReadCard();
+
+      burn==false;
     }
   }
+}
+
+int ReadCard(){
+  index=15;
+  /* Has a card been detected? */
+  while (!RC522.isCard())
+  {}
+    /* If so then get its serial number */
+  RC522.readCardSerial();
+  Serial.println("Card detected:");
+  // RC522.writeMFRC522('0', '1');
+  for(int i=0;i<5;i++)
+  {
+  Serial.print(RC522.serNum[i],DEC);
+  //Serial.print(RC522.serNum[i],HEX); //to print card detail in Hexa Decimal format
+  }
+  String d=(String)RC522.serNum[0]+(String)RC522.serNum[1]+(String)RC522.serNum[2]+(String)RC522.serNum[3]+(String)RC522.serNum[4];
+  for(int i=0;i<15;i++){
+    if(d==adresess[i]){
+      index=i;
+      break;
+    }
+  }
+  return value[index];
+}
+
+void playCard(int card){
+  if(card==1){
+    Serial << "choose what you want to play \n";
+    Serial << "1: add a stone \n";
+    Serial << "2: move 1 step \n";
+    Serial << "3: move 11 steps \n";
+
+    lcd.clear();
+    lcd.setCursor(3,0);
+    lcd.print("make your move");
+    lcd.setCursor(3,1);
+    lcd.print("1: add a stone");
+    lcd.setCursor(3,2);
+    lcd.print("2:move 1 step");
+    lcd.setCursor(3,3);
+    lcd.print("3:move 11 steps");
+
+
+    ReadButton();
+    int move =button;
+
+    if(move==1){
+      AddStone(); 
+    }
+    else if(move==2){
+      BasicMove(1); 
+    }
+    else if(move==3){
+      BasicMove(11);
+    }  
+  }
+  else if(card==2){
+    BasicMove(2);
+  }
+  else if(card==3){
+    BasicMove(3);
+  }
+   else if(card==4){
+    BasicMove(-4);
+  }
+  else if(card==5){
+    FiveMove();
+  }
+  else if(card==6){
+    BasicMove(6);
+  }
+  else if(card==7){
+    
+  }
+  else if(card==8){
+    BasicMove(8);
+  }
+  else if(card==9){
+    BasicMove(9);
+  }
+  else if(card==10){
+    Serial << "choose what you want to play \n";
+    Serial << "1: Burn next car \n";
+    Serial << "2: move 10 step \n";
+
+    lcd.clear();
+    lcd.setCursor(3,0);
+    lcd.print("make your move");
+    lcd.setCursor(3,1);
+    lcd.print("1: burn next card");
+    lcd.setCursor(3,2);
+    lcd.print("2:move 10 step");
+
+    ReadButton();
+    int move =button;
+
+    if(move==1){
+      burn=true;
+    }
+    else if(move==2){
+      BasicMove(10); 
+    }
+  }
+  else if(card==11){
+    
+  }
+  else if(card==12){
+    BasicMove(12);
+  }
+  else if(card==13){
+    Serial << "choose what you want to play \n";
+    Serial << "1: add a stone \n";
+    Serial << "2: move 13 step \n";
+
+    lcd.clear();
+    lcd.setCursor(3,0);
+    lcd.print("make your move");
+    lcd.setCursor(3,1);
+    lcd.print("1: add a stone");
+    lcd.setCursor(3,2);
+    lcd.print("2:move 13 step");
+
+
+    ReadButton();
+    int move =button;
+
+    if(move==1){
+      AddStone(); 
+    }
+    else if(move==2){
+      KingMove(); 
+    }
+  }
+}
+
+void showResult(){
+  for(int i=0;i<16;i++){
+    Serial << "|"<<players[i]<<"|  ";
+  }
+  Serial << "\n";
+}
+
+bool checkStone(){
+  bool available=false;
+
+  for(int i=0;i<4;i++){
+    if(players[(player-1)*4+i]<91){
+      Serial<<"entered if check\n";
+      available=true;
+      break;
+    }    
+  }
+   return available;   
+}
+bool checkStoneFor5(){
+  bool available=false;
+
+  for(int i=0;i<16;i++){
+    if(players[i]<91){
+      Serial<<"entered if check\n";
+      available=true;
+      break;
+    }    
+  }
+   return available;   
+}
+void AddStone(){
+  for(int i=0;i<4;i++)
+       Serial<<players[(player-1)*4+i]<<"\n";
+
+      for(int i=0;i<4;i++){
+        if(players[(player-1)*4+i]>91){
+          players[(player-1)*4+i]=(player-1)*19;
+          return;   
+        }    
+      }
+      Serial<<"no stones available"; 
+};
+
+
+
+void BasicMove(int steps){
+  if(checkStone()){
+        Serial<<"choose which stone to play\n";
+        Serial<<"1: next stone"<<"\n";
+        Serial<<"2: previous stone"<<"\n";
+        Serial<<"3: confirm"<<"\n";
+
+        chooseStoneLCD();
+
+        for(int i=0;i<4;i++){
+          if(players[(player-1)*4+i]<91){
+            Serial<<"first stone\n";
+            stone=(player-1)*4+i;
+            Serial<<"stone:"<<stone<< " value:"<< players[stone]<<"\n";                
+            break;
+          }   
+        }
+        
+         
+        button = 0;
+        while (button!=3){
+          ReadButton();
+          Serial<<"button"<<button<<"\n";
+          if(button==1){
+            for(int i=stone+1;i<4;i++){
+              if(players[(player-1)*4+i]<91){
+                Serial<<"next stone\n";
+                stone=(player-1)*4+i;
+                Serial<<"stone:"<<stone<< " value:"<< players[stone]<<"\n";                
+                break;
+              }    
+            }
+          }
+          else if(button==2){
+            Serial<<"preivios stone \n";
+            for(int i=stone-1;i>=0;i--){
+              if(players[(player-1)*4+i]<91){
+                Serial<<"preivios stone \n";
+                stone=(player-1)*4+i;
+                Serial<<"stone:"<<stone<< " value:"<< players[stone]<<"\n";
+                break;
+              }    
+            }
+          }
+          else if(button==3){
+            players[stone]=(players[stone]+steps)%78;
+            checkKills(stone);
+          }
+          Serial<<"TEST \n";
+        }
+      }
+      else{
+          Serial<<"you have no stone to play\n";
+          lcd.clear();
+          lcd.setCursor(3,0);
+          lcd.print("no stones available");
+          delay(1000);
+      }
+}
+void FiveMove(){
+  if(checkStoneFor5()){
+        Serial<<"choose which stone to play\n";
+        Serial<<"1: next stone"<<"\n";
+        Serial<<"2: previous stone"<<"\n";
+        Serial<<"3: confirm"<<"\n";
+
+        chooseStoneLCD();
+
+        for(int i=0;i<16;i++){
+          if(players[i]<91){
+            Serial<<"first stone\n";
+            stone=i;
+            Serial<<"stone:"<<stone<< " value:"<< players[stone]<<"\n";                
+            break;
+          }   
+        }
+        
+        button = 0;
+        while (button!=3){
+          ReadButton();
+          Serial<<"button"<<button<<"\n";
+          if(button==1){
+            for(int i=stone+1;i<16;i++){
+              if(players[i]<91){
+                Serial<<"next stone\n";
+                stone=i;
+                Serial<<"stone:"<<stone<< " value:"<< players[stone]<<"\n";                
+                break;
+              }    
+            }
+          }
+          else if(button==2){
+            Serial<<"preivios stone \n";
+            for(int i=stone-1;i>=0;i--){
+              if(players[i]<91){
+                Serial<<"preivios stone \n";
+                stone=i;
+                Serial<<"stone:"<<stone<< " value:"<< players[stone]<<"\n";
+                break;
+              }    
+            }
+          }
+          else if(button==3){
+            players[stone]=(players[stone]+5)%78;
+            checkKills(stone);
+          }
+          Serial<<"TEST \n";
+        }
+      }
+      else{
+          Serial<<"there is no stone to play\n";
+          lcd.clear();
+          lcd.setCursor(3,0);
+          lcd.print("no stones available");
+          delay(1000);
+      }
+}
+void KingMove(){
+  if(checkStone()){
+        Serial<<"choose which stone to play\n";
+        Serial<<"1: next stone"<<"\n";
+        Serial<<"2: previous stone"<<"\n";
+        Serial<<"3: confirm"<<"\n";
+
+        chooseStoneLCD();
+
+        for(int i=0;i<4;i++){
+          if(players[(player-1)*4+i]<91){
+            Serial<<"first stone\n";
+            stone=(player-1)*4+i;
+            Serial<<"stone:"<<stone<< " value:"<< players[stone]<<"\n";                
+            break;
+          }   
+        }
+        
+         
+        button = 0;
+        while (button!=3){
+          ReadButton();
+          Serial<<"button"<<button<<"\n";
+          if(button==1){
+            for(int i=stone+1;i<4;i++){
+              if(players[(player-1)*4+i]<91){
+                Serial<<"next stone\n";
+                stone=(player-1)*4+i;
+                Serial<<"stone:"<<stone<< " value:"<< players[stone]<<"\n";                
+                break;
+              }    
+            }
+          }
+          else if(button==2){
+            Serial<<"preivios stone \n";
+            for(int i=stone-1;i>=0;i--){
+              if(players[(player-1)*4+i]<91){
+                Serial<<"preivios stone \n";
+                stone=(player-1)*4+i;
+                Serial<<"stone:"<<stone<< " value:"<< players[stone]<<"\n";
+                break;
+              }    
+            }
+          }
+          else if(button==3){
+            for(int i=1;i<=13;i++){
+              checkKills(stone+i);
+            }   
+            players[stone]=(players[stone]+13)%78;  
+          }
+          Serial<<"TEST \n";
+        }
+      }
+      else{
+          Serial<<"you have no stone to play\n";
+          lcd.clear();
+          lcd.setCursor(3,0);
+          lcd.print("no stones available");
+          delay(1000);
+      }
+};
+void checkKills(int stone){
+  for(int i=0;i<16;i++){
+    if(i==stone)continue;
+    else{
+      if(players[stone]==players[i])
+      kill(i);
+    }
+  }
+   Serial << "checked stones \n";
+};
+void kill(int stone){
+
+}
+
+void chooseStoneLCD(){
+  lcd.clear();
+  lcd.setCursor(3,0);
+  lcd.print("choose a stone");
+  lcd.setCursor(3,1);
+  lcd.print("1: next stone");
+  lcd.setCursor(3,2);
+  lcd.print("2: previous stone");
+  lcd.setCursor(3,3);
+  lcd.print("3: confirm");
+}
+
+void ReadButton(){
+  button=0;
+  while (button==0){
+     Serial <<button;
+  }
+}
+void ISR_button_pressed(void) 
+{
+    button = 1;
+}
+void ISR_button_pressed2(void) 
+{
+    button = 2;
+}
+void ISR_button_pressed3(void) 
+{
+    button = 3;
 }
